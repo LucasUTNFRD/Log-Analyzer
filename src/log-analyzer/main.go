@@ -1,81 +1,61 @@
 package main
 
 import (
-	"TP2-Analisis-Logs/src/log-analyzer/parser"
-	diccionario "TP2-Analisis-Logs/src/log-analyzer/tdas/hash"
+	"TP2-Analisis-Logs/src/log-analyzer/LogProccessing"
 	"bufio"
 	"fmt"
-	"log"
 	"os"
 	"strings"
-	"time"
 )
 
 func main() {
+	CommandLoop()
+}
+
+func CommandLoop() {
+	lp := LogProccessing.NewLogProcessor()
 	scanner := bufio.NewScanner(os.Stdin)
+
 	for scanner.Scan() {
-		command := scanner.Text()
-		if err := ejecutarInterfaz(command); err != nil {
-			fmt.Fprintf(os.Stderr, "Error en comando : %v\n", err)
-			os.Exit(1)
+		line := scanner.Text()
+		parts := strings.Fields(line)
+
+		if len(parts) == 0 {
+			continue
+		}
+
+		command := parts[0]
+
+		switch command {
+		case "agregar_archivo":
+			if len(parts) != 2 {
+				fmt.Fprintf(os.Stderr, "Error en comando agregar_archivo\n")
+				return
+			}
+			lp.ProcessLogFile(parts[1])
+
+		case "ver_visitantes":
+			if len(parts) != 3 {
+				fmt.Fprintf(os.Stderr, "Error en comando ver_visitantes\n")
+				return
+			}
+			lp.ListVisitors(parts[1], parts[2])
+
+		case "ver_mas_visitados":
+			if len(parts) != 2 {
+				fmt.Fprintf(os.Stderr, "Error en comando ver_mas_visitados\n")
+				return
+			}
+			lp.ListMostVisited(parts[1]) // Placeholder
+
+		default:
+			fmt.Fprintf(os.Stderr, "Error en comando %s\n", command)
+			return
 		}
 	}
+
 	if err := scanner.Err(); err != nil {
-		fmt.Fprintln(os.Stderr, "Error reading standard input:", err)
+		fmt.Fprintf(os.Stderr, "Error en comando\n")
+		return
 	}
-}
-
-// command to execute
-
-//agregar_archivo <nombre_archivo>: procesa de forma completa un archivo de log.
-//ver_visitantes <desde> <hasta>: muestra todas las IPs que solicitaron algún recurso en el servidor, dentro del rango de IPs determinado.
-//ver_mas_visitados <n>: muestra los n recursos más solicitados.
-
-func ejecutarInterfaz(command string) error {
-	cmd := strings.Fields(command)
-	log.Println(cmd)
-	if len(cmd) == 0 {
-		return fmt.Errorf("comando vacio")
-	}
-	switch cmd[0] {
-	case "agregar_archivo":
-		if len(cmd) != 2 {
-			return fmt.Errorf("numero invalido de argumentos")
-		}
-		nombreArchivo := cmd[1]
-		return agregarArchivo(nombreArchivo)
-	case "ver_visitantes":
-		if len(cmd) != 3 {
-			return fmt.Errorf("numero invalido de argumentos")
-		}
-		desde, hasta := cmd[1], cmd[2]
-		return verVisitantes(desde, hasta)
-	case "ver_mas_visitados":
-		if len(cmd) != 2 {
-			return fmt.Errorf("numero invalido de argumentos")
-		}
-		n := cmd[1]
-		return verMasVisitado(n)
-	default:
-		return fmt.Errorf(cmd[0])
-	}
-}
-
-func agregarArchivo(nombreArchivo string) error {
-	logLines, err := parser.ParseLogFile(nombreArchivo)
-	if err != nil {
-		return err
-	}
-	ipDict := diccionario.CrearHash[string, []time.Time]()
-	parser.ProcessLogFile(logLines, ipDict)
-	fmt.Printf("OK\n")
-	return nil
-}
-
-func verMasVisitado(n string) error {
-	return nil
-}
-
-func verVisitantes(desde string, hasta string) error {
-	return nil
 }
