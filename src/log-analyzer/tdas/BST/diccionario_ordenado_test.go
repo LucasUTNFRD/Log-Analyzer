@@ -1,8 +1,8 @@
 package diccionario_test
 
 import (
+	TDADiccionario "TP2-Analisis-Logs/src/log-analyzer/tdas/BST"
 	"github.com/stretchr/testify/require"
-	TDADiccionario "tdas/BST"
 	"testing"
 )
 

@@ -1,9 +1,9 @@
 package diccionario_test
 
 import (
+	TDADiccionario "TP2-Analisis-Logs/src/log-analyzer/tdas/hash"
 	"fmt"
 	"github.com/stretchr/testify/require"
-	TDADiccionario "tdas/hash"
 	"testing"
 )
 

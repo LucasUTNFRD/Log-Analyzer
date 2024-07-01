@@ -1,10 +1,10 @@
 package cola_prioridad_test
 
 import (
+	TDAHeap "TP2-Analisis-Logs/src/log-analyzer/tdas/heap"
 	"fmt"
 	"github.com/stretchr/testify/require"
 	"strings"
-	TDAHeap "tdas/heap"
 	"testing"
 )
 
