@@ -13,8 +13,6 @@ import (
 	"time"
 )
 
-//TODO utilizar como estructurar un hash de ip (no permanente), abbIPS y un heap de visitados
-
 type LogLine struct {
 	ip        string
 	Timestamp time.Time
@@ -74,7 +72,11 @@ func compareCantidad(url1, url2 VisitedURL) int {
 	}
 }
 
-const layout = "2006-01-02T15:04:05-07:00"
+const (
+	layout           = "2006-01-02T15:04:05-07:00"
+	rangoDoS         = 2
+	requestThreshold = 5
+)
 
 func (lp *LogProcessor) ProcessLogFile(logFile string) {
 
@@ -87,6 +89,7 @@ func (lp *LogProcessor) ProcessLogFile(logFile string) {
 	defer file.Close()
 	//var logLines []LogLine
 	scanner := bufio.NewScanner(file)
+	var newEntry []LogLine
 	for scanner.Scan() {
 		lines := scanner.Text()
 		logFields := strings.Split(lines, "\t")
@@ -97,12 +100,12 @@ func (lp *LogProcessor) ProcessLogFile(logFile string) {
 			Method:    logFields[2],
 			Url:       logFields[3],
 		}
-		lp.log = append(lp.log, logEntry)
+		newEntry = append(newEntry, logEntry)
+		//lp.log = append(lp.log, logEntry)
 	}
+	lp.log = newEntry
 	fmt.Println("OK")
 	lp.checkDoS()
-	//TODO : encolar mas visitados, guardar ip visitantes
-	//
 	lp.processVisitedURL()
 	lp.processIps()
 }
@@ -113,12 +116,13 @@ func (lp *LogProcessor) ListMostVisited(n string) {
 		fmt.Fprintf(os.Stderr, "Error en comando ver_mas_visitados\n")
 		return
 	}
-	fmt.Printf("se pidio n = %d elementos\n", k)
 	//TODO:Copiar heap para que desencolar no modifique la estrucutra de datos
 	// Controlar que n este en el rango de cantidad de logLines
+	var mostVisitedTemp colaPrioridad.ColaPrioridad[VisitedURL]
+	mostVisitedTemp = lp.mostVisited
 	fmt.Println("Sitios más visitados:")
 	for i := 0; i < k; i++ {
-		elem := lp.mostVisited.Desencolar()
+		elem := mostVisitedTemp.Desencolar()
 		url, cant := elem.Url, elem.Cantidad
 		fmt.Printf("\t%s - %d\n", url, cant)
 	}
@@ -162,17 +166,15 @@ func (lp *LogProcessor) processVisitedURL() {
 	var urlVisited []VisitedURL
 	for iter.HaySiguiente() {
 		url, cantidad := iter.VerActual()
-		fmt.Println(url, cantidad)
+		//fmt.Println(url, cantidad)
 		urlVisited = append(urlVisited, VisitedURL{url, cantidad})
 		iter.Siguiente()
 	}
-	lp.mostVisited = colaPrioridad.CrearHeapArr[VisitedURL](urlVisited, compareCantidad)
+	lp.mostVisited = colaPrioridad.CrearHeapArr(urlVisited, compareCantidad)
 }
 
 func (lp *LogProcessor) checkDoS() {
-	//var suspectIps []string
 	ipDict := diccionario.CrearHash[string, []time.Time]()
-	var suspectIps []net.IP
 	for i := 0; i < len(lp.log); i++ { //iterar todas las lineas es O(n)
 		ip := lp.log[i].ip
 		if !ipDict.Pertenece(ip) {
@@ -181,18 +183,24 @@ func (lp *LogProcessor) checkDoS() {
 			timestamp := ipDict.Obtener(ip)
 			timestamp = append(timestamp, lp.log[i].Timestamp)
 			ipDict.Guardar(ip, timestamp)
-			if len(timestamp) >= 5 {
-				if timestamp[len(timestamp)-1].Sub(timestamp[len(timestamp)-5]) < 2*time.Second {
-					ipParsed := net.ParseIP(ip)
-					suspectIps = append(suspectIps, ipParsed)
-				}
-			}
 		}
 	}
-
-	colaPrioridad.HeapSort[net.IP](suspectIps, compareIP) //toma O(klog(k)) donde k es la cantidad de ip suspechosas y k << n
-	for _, ip := range suspectIps {
+	iter := ipDict.Iterador()
+	var suspectedIps []net.IP
+	for iter.HaySiguiente() {
+		ip, timeStamps := iter.VerActual()
+		for len(timeStamps) >= requestThreshold {
+			if timeStamps[requestThreshold-1].Sub(timeStamps[0]) <= time.Duration(rangoDoS)*time.Second {
+				ipParsed := net.ParseIP(ip)
+				suspectedIps = append(suspectedIps, ipParsed)
+				break
+			}
+			timeStamps = timeStamps[1:]
+		}
+		iter.Siguiente()
+	}
+	colaPrioridad.HeapSort[net.IP](suspectedIps, compareIP) //toma O(klog(k)) donde k es la cantidad de ip suspechosas y k << n
+	for _, ip := range suspectedIps {
 		fmt.Println("DoS: ", ip)
 	}
-
 }
